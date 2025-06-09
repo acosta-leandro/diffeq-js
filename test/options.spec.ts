@@ -3,12 +3,12 @@ import { describe, it, before } from 'mocha';
 import { assert } from 'chai';
 import { compileModel, compileResponse } from '../src/index';
 import * as fs from 'fs';
-import logistic_code from './logistic';
+import { code1, code2 } from './logistic';
 
 
 describe('Options', function () {
   before(function () {
-    return compileModel(logistic_code);
+    return compileModel(code1);
   });
 
   it('can construct and destroy', function () {
