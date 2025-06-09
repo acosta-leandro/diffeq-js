@@ -8,17 +8,6 @@ export { default as Vector } from "./vector";
 export { default as Options, OptionsJacobian, OptionsLinearSolver, OptionsPreconditioner } from "./options";
 export { default as Solver } from "./solver";
 
-
-let args: string[] = [];
-let env: string[] = [];
-let fds = [
-    new OpenFile(new File([])), // stdin
-    new OpenFile(new File([])), // stdout
-    new OpenFile(new File([])), // stderr
-];
-let wasi = new WASI(args, env, fds);
-let inst: WebAssembly.WebAssemblyInstantiatedSource | undefined = undefined;
-
 class SimpleOpenFile {
   file: File;
   file_pos: number;
@@ -37,20 +26,18 @@ class SimpleOpenFile {
   }
 }
 
-// @ts-expect-error
-let stderr = new SimpleOpenFile(wasi.fds[2].file);
+const defaultBaseUrl = "https://compbio.fhs.um.edu.mo/diffeq";
 
-// @ts-expect-error
-let stdout = new SimpleOpenFile(wasi.fds[1].file);
-
-function getWasmMemory() {
-  if (inst === undefined) {
-    throw new Error("WASM module not loaded");
-  }
-  return inst.instance.exports.memory as WebAssembly.Memory;
+function createWasi() {
+  let args: string[] = [];
+  let env: string[] = [];
+  let fds = [
+    new OpenFile(new File([])), // stdin
+    new OpenFile(new File([])), // stdout
+    new OpenFile(new File([])), // stderr
+  ];
+  return new WASI(args, env, fds);
 }
-
-const defaultBaseUrl = "https://diffeq-backend.fly.dev";
 
 function compileModel(text: string, baseUrl: string = defaultBaseUrl) {
   const data = {
@@ -77,22 +64,31 @@ function compileModel(text: string, baseUrl: string = defaultBaseUrl) {
 }
 
 function compileResponse(response: Promise<Response>) {
+  const wasi = createWasi();
   const importObject = {
     "wasi_snapshot_preview1": wasi.wasiImport,
   };
   return WebAssembly.instantiateStreaming(response, importObject).then(
     (obj) => { 
-      extract_vector_functions(obj);
-      extract_options_functions(obj);
-      extract_solver_functions(obj);
-      inst = obj 
-      // @ts-expect-error
-      wasi.initialize(inst.instance);
+      wasi.initialize(obj.instance);
+      const stderr = new SimpleOpenFile(wasi.fds[2].file);
+      const stdout = new SimpleOpenFile(wasi.fds[1].file);
+      const vectorFunctions = extract_vector_functions(obj);
+      const optionsFunctions = extract_options_functions(obj);
+      const solverFunctions = extract_solver_functions(obj);
+      return {
+        instance: obj,
+        stderr,
+        stdout,
+        vectorFunctions,
+        optionsFunctions,
+        solverFunctions
+      };
     },
   );
 }
 
-export { compileModel, compileResponse, getWasmMemory, stderr, stdout }
+export { compileModel, compileResponse }
 
 
 

@@ -8,24 +8,27 @@ import { compileModel } from '../src/index';
 import {code1} from './logistic';
 import { error } from 'console';
 
+let model: any;
 
 describe('Solver', function () {
   before(function () {
-    return compileModel(code1);
+    return compileModel(code1).then((m) => {
+      model = m;
+    });
   });
 
   it('can construct and destroy', function () {
-    let options = new Options({});
-    let solver = new Solver(options);
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
     solver.destroy();
   });
   
   it('can solve at fixed times', function () {
-    let options = new Options({fixed_times: true});
-    let solver = new Solver(options);
-    let times = new Vector([0, 1]);
-    let inputs = new Vector([1, 2]);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs));
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {fixed_times: true});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
+    let times = new Vector([0, 1], model.vectorFunctions);
+    let inputs = new Vector([1, 2], model.vectorFunctions);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
     solver.solve(times, inputs, outputs);
     const should_be = [
       [1, 2],
@@ -41,13 +44,13 @@ describe('Solver', function () {
   });
 
   it('can solve with sensitivities', function () {
-    let options = new Options({fixed_times: true, fwd_sens: true});
-    let solver = new Solver(options);
-    let times = new Vector([0, 1]);
-    let inputs = new Vector([1, 2]);
-    let dinputs = new Vector([1, 0]);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs));
-    let doutputs = new Vector([]);
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {fixed_times: true, fwd_sens: true});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
+    let times = new Vector([0, 1], model.vectorFunctions);
+    let inputs = new Vector([1, 2], model.vectorFunctions);
+    let dinputs = new Vector([1, 0], model.vectorFunctions);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
+    let doutputs = new Vector([], model.vectorFunctions);
     solver.solve_with_sensitivities(times, inputs, dinputs, outputs, doutputs);
     const should_be = [
       [1, 2],
@@ -89,11 +92,11 @@ describe('Solver', function () {
   });
 
   it('can solve at solver times', function () {
-    let options = new Options({fixed_times: false});
-    let solver = new Solver(options);
-    let times = new Vector([0, 1]);
-    let inputs = new Vector([1, 2]);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs));
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {fixed_times: false});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
+    let times = new Vector([0, 1], model.vectorFunctions);
+    let inputs = new Vector([1, 2], model.vectorFunctions);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
     solver.solve(times, inputs, outputs);
     const times_array = times.getFloat64Array();
     const output_array = outputs.getFloat64Array();
@@ -107,12 +110,13 @@ describe('Solver', function () {
     
     solver.destroy();
   });
+
   it('fails gracefully when solver fails', function () {
-    let options = new Options({fixed_times: false});
-    let solver = new Solver(options);
-    let times = new Vector([0, 1]);
-    let inputs = new Vector([1, 0]);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs));
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {fixed_times: false});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
+    let times = new Vector([0, 1], model.vectorFunctions);
+    let inputs = new Vector([1, 0], model.vectorFunctions);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
     let error = undefined;
 
     // should error with a message
@@ -142,5 +146,4 @@ describe('Solver', function () {
       
     solver.destroy();
   });
-
 });

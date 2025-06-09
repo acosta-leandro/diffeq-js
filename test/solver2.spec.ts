@@ -7,24 +7,27 @@ import * as fs from 'fs';
 import { compileModel } from '../src/index';
 import { code1, code2 } from './logistic';
 
+let model: any;
 
 describe('Solver 2', function () {
   before(function () {
-    return compileModel(code2);
+    return compileModel(code2).then((m) => {
+      model = m;
+    });
   });
 
   it('can construct and destroy', function () {
-    let options = new Options({});
-    let solver = new Solver(options);
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
     solver.destroy();
   });
   
   it('can solve at fixed times', function () {
-    let options = new Options({fixed_times: true});
-    let solver = new Solver(options);
-    let times = new Vector([0, 1]);
-    let inputs = new Vector([1, 2]);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs));
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {fixed_times: true});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
+    let times = new Vector([0, 1], model.vectorFunctions);
+    let inputs = new Vector([1, 2], model.vectorFunctions);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
     solver.solve(times, inputs, outputs);
     const should_be = [
       [1, 0],
@@ -40,11 +43,11 @@ describe('Solver 2', function () {
   });
 
   it('can solve and match analytical solution', function () {
-    let options = new Options({});
-    let solver = new Solver(options);
-    let times = new Vector([0, 2]);
-    let inputs = new Vector([1, 2]);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs));
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
+    let times = new Vector([0, 2], model.vectorFunctions);
+    let inputs = new Vector([1, 2], model.vectorFunctions);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
     
     solver.solve(times, inputs, outputs);
     
@@ -58,11 +61,11 @@ describe('Solver 2', function () {
   });
 
   it('can solve at solver times', function () {
-    let options = new Options({fixed_times: false});
-    let solver = new Solver(options);
-    let times = new Vector([0, 2]);
-    let inputs = new Vector([1, 2]);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs));
+    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {fixed_times: false});
+    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
+    let times = new Vector([0, 2], model.vectorFunctions);
+    let inputs = new Vector([1, 2], model.vectorFunctions);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
     solver.solve(times, inputs, outputs);
     const times_array = times.getFloat64Array();
     const output_array = outputs.getFloat64Array();
@@ -76,7 +79,4 @@ describe('Solver 2', function () {
     
     solver.destroy();
   });
-
- 
-
 });
