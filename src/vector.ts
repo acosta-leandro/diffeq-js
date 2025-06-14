@@ -1,5 +1,9 @@
 import { check_function } from "./utils";
 
+declare global {
+  var vectorFunctions: VectorFunctions;
+}
+
 type Vector_create_t = () => number;
 type Vector_destroy_t = (ptr: number) => void;
 type Vector_linspace_create_t = (start: number, stop: number, len: number) => number;
@@ -45,8 +49,11 @@ class Vector {
   pointer: number;
   private functions: VectorFunctions;
 
-  constructor(array: number[], functions: VectorFunctions) {
-    this.functions = functions;
+  constructor(array: number[], functions?: VectorFunctions) {
+    this.functions = functions || global.vectorFunctions;
+    if (!this.functions) {
+      throw new Error('Vector functions not available. Please compile the model first.');
+    }
     this.pointer = check_function(this.functions.Vector_create_with_capacity)(0, array.length)
     let push = check_function(this.functions.Vector_push);
     for (let i = 0; i < array.length; i++) {

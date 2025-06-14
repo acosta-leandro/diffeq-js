@@ -1,6 +1,12 @@
 import Options from "./options";
 import { check_function } from "./utils";
 import Vector, { VectorFunctions } from "./vector";
+import { getModel } from "./index";
+
+declare global {
+  var solverFunctions: SolverFunctions;
+  var vectorFunctions: VectorFunctions;
+}
 
 type Solver_create_t = () => number;
 type Solver_destroy_t = (ptr: number) => void;
@@ -42,10 +48,14 @@ class Solver {
   private functions: SolverFunctions;
   private vectorFunctions: VectorFunctions;
 
-  constructor(functions: SolverFunctions, options: Options, vectorFunctions: VectorFunctions) {
-    this.functions = functions;
+  constructor(options: Options, modelId?: string) {
+    const model = getModel(modelId);
+    if (!model) {
+      throw new Error(`Model ${modelId || 'default'} not found. Please compile the model first.`);
+    }
+    this.functions = model.solverFunctions;
+    this.vectorFunctions = model.vectorFunctions;
     this.options = options;
-    this.vectorFunctions = vectorFunctions;
     this.pointer = check_function(this.functions.Solver_create)();
     check_function(this.functions.Solver_init)(this.pointer, options.pointer);
     this.number_of_inputs = check_function(this.functions.Solver_number_of_inputs)(this.pointer);

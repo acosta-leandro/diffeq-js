@@ -1,8 +1,7 @@
-import { WASI, File, OpenFile, PreopenDirectory } from "@bjorn3/browser_wasi_shim";
-import { extract_vector_functions } from "./vector";
-import { extract_options_functions } from "./options";
-import { extract_solver_functions } from "./solver";
-import base from "/node_modules/base-x/src/index";
+import {File, OpenFile, WASI} from "@bjorn3/browser_wasi_shim";
+import {extract_vector_functions} from "./vector";
+import {extract_options_functions} from "./options";
+import {extract_solver_functions} from "./solver";
 
 export { default as Vector } from "./vector";
 export { default as Options, OptionsJacobian, OptionsLinearSolver, OptionsPreconditioner } from "./options";
@@ -21,8 +20,7 @@ class SimpleOpenFile {
     const end = data.byteLength;
     const slice = data.slice(start, end);
     this.file_pos = end;
-    const string = new TextDecoder().decode(slice);
-    return string;
+    return new TextDecoder().decode(slice);
   }
 }
 
@@ -39,28 +37,24 @@ function createWasi() {
   return new WASI(args, env, fds);
 }
 
-function compileModel(text: string, baseUrl: string = defaultBaseUrl) {
-  const data = {
-    text,
-    name: "unknown",
-  };
-  const options: RequestInit = {
-    method: "POST",
-    mode: "cors",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  };
-  const response = fetch(`${baseUrl}/compile`, options).then((response) => {
-    if (!response.ok) {
-      return response.text().then((text) => {
-        throw text;
-      });
+class ModelRegistry {
+  private static models: Map<string, any> = new Map();
+  private static defaultModel: any = null;
+
+  static register(id: string | undefined, model: any) {
+    if (id) {
+      this.models.set(id, model);
+    } else {
+      this.defaultModel = model;
     }
-    return response;
-  });
-  return compileResponse(response);
+  }
+
+  static get(id?: string) {
+    if (id) {
+      return this.models.get(id);
+    }
+    return this.defaultModel;
+  }
 }
 
 function compileResponse(response: Promise<Response>) {
@@ -70,12 +64,24 @@ function compileResponse(response: Promise<Response>) {
   };
   return WebAssembly.instantiateStreaming(response, importObject).then(
     (obj) => { 
-      wasi.initialize(obj.instance);
-      const stderr = new SimpleOpenFile(wasi.fds[2].file);
-      const stdout = new SimpleOpenFile(wasi.fds[1].file);
+      wasi.initialize({
+        exports: {
+          memory: obj.instance.exports.memory as WebAssembly.Memory,
+        },
+      });
+      const stderr = new SimpleOpenFile((wasi.fds[2] as OpenFile).file);
+      const stdout = new SimpleOpenFile((wasi.fds[1] as OpenFile).file);
       const vectorFunctions = extract_vector_functions(obj);
       const optionsFunctions = extract_options_functions(obj);
       const solverFunctions = extract_solver_functions(obj);
+      
+      // Set global functions
+      global.vectorFunctions = vectorFunctions;
+      global.optionsFunctions = optionsFunctions;
+      global.solverFunctions = solverFunctions;
+      global.stderr = stderr;
+      global.stdout = stdout;
+      
       return {
         instance: obj,
         stderr,
@@ -88,7 +94,35 @@ function compileResponse(response: Promise<Response>) {
   );
 }
 
-export { compileModel, compileResponse }
+export async function compileModel(code: string, id?: string) {
+  const data = {
+    text: code,
+    name: "unknown",
+  };
+  const options: RequestInit = {
+    method: "POST",
+    mode: "cors",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  };
+  const response = fetch(`${defaultBaseUrl}/compile`, options).then((response) => {
+    if (!response.ok) {
+      return response.text().then((text) => {
+        throw text;
+      });
+    }
+    return response;
+  });
+  const model = await compileResponse(response);
+  ModelRegistry.register(id, model);
+  return model;
+}
+
+export function getModel(id?: string) {
+  return ModelRegistry.get(id);
+}
 
 
 

@@ -1,17 +1,13 @@
 import Vector from '../src/vector';
 import { describe, it, before } from 'mocha';
 import { assert } from 'chai';
-import * as fs from 'fs';
-import { code1, code2 } from './logistic';
-import { compileModel } from '../src/index';
+import { code1 } from './logistic';
+import { compileModel } from '/src';
 
-let model: any;
 
 describe('Vector', function () {
   before(function () {
-    return compileModel(code1).then((m) => {
-      model = m;
-    });
+    return compileModel(code1);
   });
 
   it('can construct and destroy', function () {
@@ -22,7 +18,7 @@ describe('Vector', function () {
       [1.1, 2.2, 3.4],
     ];
     for (let i = 0; i < test_arrays.length; i++) {
-      const v = new Vector(test_arrays[i], model.vectorFunctions);
+      const v = new Vector(test_arrays[i]);
       for (let j = 0; j < test_arrays[i].length; j++) {
         assert.equal(v.get(j), test_arrays[i][j]);
       }
@@ -38,7 +34,7 @@ describe('Vector', function () {
       [1.1, 2.2, 3.4],
     ];
     for (let i = 0; i < test_arrays.length; i++) {
-      const v = new Vector(test_arrays[i], model.vectorFunctions);
+      const v = new Vector(test_arrays[i]);
       const float64array = v.getFloat64Array();
       for (let j = 0; j < test_arrays[i].length; j++) {
         assert.equal(float64array[j], test_arrays[i][j]);
@@ -48,7 +44,7 @@ describe('Vector', function () {
   });
 
   it('can resize', function () {
-    let v = new Vector([1, 2], model.vectorFunctions);
+    let v = new Vector([1, 2]);
     v.resize(4);
     assert.equal(v.get(0), 1);
     assert.equal(v.length(), 4);
@@ -56,4 +52,5 @@ describe('Vector', function () {
     assert.equal(v.get(0), 1);
     assert.equal(v.length(), 1);
   });
+
 });

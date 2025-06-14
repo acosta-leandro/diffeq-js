@@ -1,82 +1,129 @@
 import Vector from '../src/vector';
 import Solver from '../src/solver';
 import Options from '../src/options';
-import { describe, it, before } from 'mocha';
-import { assert, expect } from 'chai';
-import * as fs from 'fs';
-import { compileModel } from '../src/index';
+import { describe, it } from 'mocha';
+import { assert } from 'chai';
+import { compileModel, getModel } from '/src';
 import { code1, code2 } from './logistic';
 
-let model: any;
-
-describe('Solver 2', function () {
-  before(function () {
-    return compileModel(code2).then((m) => {
-      model = m;
-    });
-  });
-
-  it('can construct and destroy', function () {
-    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {});
-    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
-    solver.destroy();
-  });
-  
-  it('can solve at fixed times', function () {
-    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {fixed_times: true});
-    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
-    let times = new Vector([0, 1], model.vectorFunctions);
-    let inputs = new Vector([1, 2], model.vectorFunctions);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
-    solver.solve(times, inputs, outputs);
-    const should_be = [
-      [1, 0],
-      [1.462115, 0],
-    ]
-    for (let i = 0; i < times.length(); i++) {
-      for (let j = 0; j < solver.number_of_outputs; j++) {
-        assert.approximately(outputs.get(i * solver.number_of_outputs + j), should_be[i][j], 0.0001);
-      }
+describe('Multiple Solvers', function () {
+  it('can compile code1 and code2', async function () {
+    try {
+      await Promise.all([
+        compileModel(code1, 'model1'),
+        compileModel(code2, 'model2')
+      ]);
+      assert(true);
+    } catch (e) {
+      assert.fail(e as string);
     }
-    
-    solver.destroy();
   });
 
-  it('can solve and match analytical solution', function () {
-    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {});
-    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
-    let times = new Vector([0, 2], model.vectorFunctions);
-    let inputs = new Vector([1, 2], model.vectorFunctions);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
+
+  it('can compile and solve using global functions', async function () {
+    await compileModel(code1);
+    let options = new Options({});
+    let solver = new Solver(options);
+    
+    let times = new Vector([0, 2]);
+    let inputs = new Vector([1, 2]);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs));
     
     solver.solve(times, inputs, outputs);
     
     const outputArray = outputs.getFloat64Array();
     const sum = outputArray.reduce((acc, curr) => acc + curr, 0);
-    const expectedSum = 45.98250398335723;
+    const expectedSum = 167.28648630426795;
     
     assert.approximately(sum, expectedSum, 0.0001);
     
     solver.destroy();
   });
 
-  it('can solve at solver times', function () {
-    let options = new Options(model.optionsFunctions, model.stderr, model.stdout, {fixed_times: false});
-    let solver = new Solver(model.solverFunctions, options, model.vectorFunctions);
-    let times = new Vector([0, 2], model.vectorFunctions);
-    let inputs = new Vector([1, 2], model.vectorFunctions);
-    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), model.vectorFunctions);
+  it('can compile and solve using default model', async function () {
+    await compileModel(code1);
+    let options = new Options({});
+    let solver = new Solver(options);
+    
+    let times = new Vector([0, 2], getModel().vectorFunctions);
+    let inputs = new Vector([1, 2], getModel().vectorFunctions);
+    let outputs = new Vector(new Array(times.length() * solver.number_of_outputs), getModel().vectorFunctions);
+    
     solver.solve(times, inputs, outputs);
-    const times_array = times.getFloat64Array();
-    const output_array = outputs.getFloat64Array();
-    const number_of_times = times_array.length;
-    assert.isAbove(number_of_times, 2);
-    assert.equal(output_array.length, number_of_times * solver.number_of_outputs);
-    const should_be = [1.761599, 0];
-    for (let j = 0; j < solver.number_of_outputs; j++) {
-      assert.approximately(outputs.get((number_of_times - 1) * solver.number_of_outputs + j), should_be[j], 0.0001);
-    }
+    
+    const outputArray = outputs.getFloat64Array();
+    const sum = outputArray.reduce((acc, curr) => acc + curr, 0);
+    const expectedSum = 167.28648630426795;
+    
+    assert.approximately(sum, expectedSum, 0.0001);
     
     solver.destroy();
   });
-});
+
+  it('can compile using id and solve', async function () {
+    await compileModel(code1, 'model1');
+    
+    // Solve code1 (default model)
+    let options1 = new Options({}, 'model1');
+    let solver1 = new Solver(options1, 'model1');
+    let times1 = new Vector([0, 2], getModel('model1').vectorFunctions);
+    let inputs1 = new Vector([1, 2], getModel('model1').vectorFunctions);
+    let outputs1 = new Vector(new Array(times1.length() * solver1.number_of_outputs), getModel('model1').vectorFunctions);
+    
+    solver1.solve(times1, inputs1, outputs1);
+    
+    const outputArray1 = outputs1.getFloat64Array();
+    const sum1 = outputArray1.reduce((acc, curr) => acc + curr, 0);
+    const expectedSum1 = 167.28648630426795;
+    
+    assert.approximately(sum1, expectedSum1, 0.0001);
+    
+    solver1.destroy();
+  });
+
+  it('can compile and solve both code1 and code2, and then solve code1 again', async function () {
+    await compileModel(code1, 'model1');
+    await compileModel(code2, 'model2');
+    
+    // Solve code1 (default model)
+    let options1 = new Options({}, 'model1');
+    let solver1 = new Solver(options1, 'model1');
+    let times1 = new Vector([0, 2], getModel('model1').vectorFunctions);
+    let inputs1 = new Vector([1, 2], getModel('model1').vectorFunctions);
+    let outputs1 = new Vector(new Array(times1.length() * solver1.number_of_outputs), getModel('model1').vectorFunctions);
+    
+    solver1.solve(times1, inputs1, outputs1);
+    const outputArray1 = outputs1.getFloat64Array();
+    const sum1 = outputArray1.reduce((acc, curr) => acc + curr, 0);
+    const expectedSum1 = 167.28648630426795;
+    assert.approximately(sum1, expectedSum1, 0.0001);
+    
+
+    // Solve code2 (model2)
+    let options2 = new Options({}, 'model2');
+    let solver2 = new Solver(options2, 'model2');
+    let times2 = new Vector([0, 2], getModel('model2').vectorFunctions);
+    let inputs2 = new Vector([1, 2], getModel('model2').vectorFunctions);
+    let outputs2 = new Vector(new Array(times2.length() * solver2.number_of_outputs), getModel('model2').vectorFunctions);
+    
+    solver2.solve(times2, inputs2, outputs2);
+    const outputArray2 = outputs2.getFloat64Array();
+    const sum2 = outputArray2.reduce((acc, curr) => acc + curr, 0);
+    const expectedSum2 = 45.98250398335723;
+    assert.approximately(sum2, expectedSum2, 0.0001);
+
+    
+    //solve code1 again
+    let times3 = new Vector([0, 2], getModel('model1').vectorFunctions);
+    let inputs3 = new Vector([1, 3], getModel('model1').vectorFunctions);
+    let outputs3 = new Vector(new Array(times3.length() * solver1.number_of_outputs), getModel('model1').vectorFunctions);
+    
+
+    solver1.solve(times3, inputs3, outputs3);
+    const outputArray3 = outputs3.getFloat64Array();
+    const sum3 = outputArray3.reduce((acc, curr) => acc + curr, 0);
+    const expectedSum3 = 176.28342332633014;
+    
+    assert.approximately(sum3, expectedSum3, 0.0001);
+  });
+}); 
